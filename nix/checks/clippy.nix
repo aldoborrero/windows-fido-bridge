@@ -1,11 +1,8 @@
 { flake, pkgs, ... }:
-let
-  craneLib = flake.lib.craneLib pkgs;
-  src = craneLib.cleanCargoSource flake;
-in
-craneLib.cargoClippy {
-  inherit src;
-  strictDeps = true;
-  cargoArtifacts = craneLib.buildDepsOnly { inherit src; };
-  cargoClippyExtraArgs = "--all-targets -- --deny warnings";
-}
+(flake.lib.craneLib pkgs).cargoClippy (
+  flake.lib.commonArgs pkgs
+  // {
+    cargoArtifacts = flake.lib.cargoArtifacts pkgs;
+    cargoClippyExtraArgs = "--all-targets -- --deny warnings";
+  }
+)

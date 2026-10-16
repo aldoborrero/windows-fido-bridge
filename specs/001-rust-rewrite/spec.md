@@ -201,6 +201,17 @@ PIN/biometric prompt.
   possible later improvement, not part of parity.
 - The upstream "user id" placeholder `(null)` and relying-party name
   `OpenSSH via windows-fido-bridge` are kept for enrollment.
+- Enrollment returns the request flags as `sk_enroll_response.flags` (OpenSSH stores them as the
+  key's `sk_flags`, as with its own `sk-usbhid`); upstream returned 0, which dropped
+  `verify-required` from new keys. This is an intentional security deviation (research R10).
+- Other deliberate deviations from upstream are listed in research R12: short DER integers in
+  ECDSA signatures accepted, strict DER and 32-byte P-256 coordinates, memory freed on error
+  paths, requests over 32768 bytes rejected before spawning, host descriptors not inherited by
+  the exe, console subsystem for the exe, invalid UTF-8 rejected, empty response buffers
+  returned as NULL, frame headers capped at 5 digits, and stricter CBOR decoding (duplicate
+  keys, null `sig_r`/`sig_s`).
+- Golden fixtures live only in `crates/protocol/tests/fixtures/`; what is captured from
+  upstream and what is synthetic is recorded in research R13.
 - Hardware tests (`just try-sign`, enrollment) are run manually by the developer; automated
   checks cover everything that does not need a key or Windows.
 - No feature git branch is created yet because the repository has no initial commit; work starts

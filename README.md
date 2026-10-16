@@ -5,7 +5,7 @@ Use a FIDO security key plugged into Windows for OpenSSH inside WSL — `ssh`, `
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/aldoborrero/windows-fido-bridge/ci.yml)](https://github.com/aldoborrero/windows-fido-bridge/actions)
 
-> **Status:** Rust rewrite in progress. The scaffold builds, but the middleware does not sign yet. The [upstream C++ implementation](https://github.com/socram8888/windows-fido-bridge) is the working reference.
+> **Status:** Rust rewrite of the [upstream C++ implementation](https://github.com/socram8888/windows-fido-bridge) with the same behaviour: signing, enrollment and diagnostics. It speaks the same wire protocol, so either half can be swapped with its upstream counterpart.
 
 ## About
 
@@ -36,6 +36,25 @@ nix build github:aldoborrero/windows-fido-bridge
 
 Both files land in `result/lib/`. The library expects the `.exe` next to it.
 
+### NixOS / home-manager
+
+Add the flake as an input and enable the module. It sets `SSH_SK_PROVIDER` and allows the middleware in `ssh-agent` (`-P`):
+
+```nix
+# flake.nix
+inputs.windows-fido-bridge.url = "github:aldoborrero/windows-fido-bridge";
+
+# NixOS (e.g. a NixOS-WSL host; uses programs.ssh.startAgent)
+imports = [ inputs.windows-fido-bridge.nixosModules.windows-fido-bridge ];
+programs.windows-fido-bridge.enable = true;
+
+# or home-manager (uses services.ssh-agent)
+imports = [ inputs.windows-fido-bridge.homeModules.windows-fido-bridge ];
+programs.windows-fido-bridge.enable = true;
+```
+
+The key stays attached to Windows; no `usbipd` passthrough is needed.
+
 ## Usage
 
 ```bash
@@ -50,6 +69,28 @@ With `ssh-agent`, allow the provider path explicitly (the default allow-list onl
 ```bash
 ssh-agent -P '/nix/store/*'
 ssh-add -S "$SSH_SK_PROVIDER" ~/.ssh/id_ed25519_sk
+```
+
+Enroll a new key (Windows asks for a touch):
+
+```bash
+ssh-keygen -t ed25519-sk -w "$SSH_SK_PROVIDER" -f ~/.ssh/id_ed25519_sk   # or -t ecdsa-sk
+ssh-keygen -t ed25519-sk -w "$SSH_SK_PROVIDER" -O user=alice              # user name shown by Windows
+```
+
+Environment variables (forwarded to the Windows side through `WSLENV`):
+
+| Variable | Effect |
+| --- | --- |
+| `WINDOWS_FIDO_BRIDGE_DEBUG` | any value: debug logs from both sides on stderr (the PIN is never logged) |
+| `WINDOWS_FIDO_BRIDGE_FORCE_USER_VERIFICATION` | any value: always require PIN or biometric verification |
+
+Using the application `ssh:windows-fido-bridge-verify-required` (`ssh-keygen -O application=...`) also requires user verification for that key. Resident keys (`ssh-keygen -K`) are not supported.
+
+List the serial numbers of the YubiKeys attached to Windows (one decimal per line, nothing if none; read over PC/SC, no window or touch). [gfh](https://github.com/aldoborrero/gfh) runs this to pick a signing key under WSL:
+
+```bash
+"$(dirname "$SSH_SK_PROVIDER")/windowsfidobridge.exe" --list-serials
 ```
 
 ## Development

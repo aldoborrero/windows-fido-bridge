@@ -118,14 +118,148 @@ Phase 0 output for [plan.md](plan.md). Every decision cites the upstream behavio
 ## R10. Upstream quirks kept for parity (documented, not "fixed")
 
 - PIN from OpenSSH is never sent to Windows.
-- `sk_enroll_response.flags` is left 0 and `authdata` empty on enrollment.
+- `authdata` stays empty on enrollment.
 - Enrollment user id placeholder `(null)`, RP name `OpenSSH via windows-fido-bridge`,
   default user name `SSH user`, `user` option overrides it.
 - `ssh:windows-fido-bridge-verify-required` application forces user verification.
 - Frame header parse rejects sizes > 32768 bytes.
 
+**Not kept: `sk_enroll_response.flags`.** Upstream leaves it 0, but OpenSSH stores
+`resp->flags` as the new key's `sk_flags` (`ssh-sk.c: sshsk_enroll` →
+`sshsk_key_from_response`), and its own `sk-usbhid.c` sets `response->flags = flags` (the
+request flags). With 0 the key file loses `SSH_SK_USER_PRESENCE_REQD` and
+`SSH_SK_USER_VERIFICATION_REQD`: a key enrolled with `-O verify-required` no longer asks for
+verification when signing, and every key looks as if enrolled with `-O no-touch-required`.
+The rewrite returns the request flags, as `sk-usbhid.c` does (security fix; deviation listed in
+R12).
+
 ## R11. Toolchain and build
 
-- **Decision**: no change — rust-overlay stable from `rust-toolchain.toml` (1.99.1 at time of
-  writing), edition 2024, crane; Windows exe via `x86_64-pc-windows-gnu` + nixpkgs mingw-w64
-  (already working in the scaffold).
+- **Decision**: rust-overlay toolchain from `rust-toolchain.toml`, pinned to the exact release
+  (`channel = "1.99.1"`, the stable release at the time of writing) so the devshell and every Nix
+  build use the same compiler; edition 2024, crane; Windows exe via `x86_64-pc-windows-gnu` +
+  nixpkgs mingw-w64.
+- **Nix layout**: `nix/lib` holds the shared crane arguments (`commonArgs`, `strictDeps`) and
+  one `buildDepsOnly` per target (`cargoArtifacts` for Linux, `windowsArtifacts` for the
+  exe). The middleware build (`doCheck = false`), `checks.tests` (the only test run) and
+  `checks.clippy` share the Linux one; the exe build and `checks.clippy-windows` (lints
+  `webauthn.rs`/`window.rs` with `-D warnings`) share the Windows one, so `nix flake check`
+  evaluates exactly two `-deps` derivations. The source filter keeps `*.hex` only under
+  `crates/`.
+
+## R12. Deviations from upstream
+
+Every intentional behaviour difference; valid upstream traffic behaves identically unless noted.
+
+**Signing and enrollment**
+
+- **Enroll flags** (security): `sk_enroll_response.flags` = request flags instead of 0 (R10).
+- **Short ECDSA integers**: DER encodes r/s minimally, so about 1 signature in 128 has a
+  31-byte (or shorter) INTEGER and a SEQUENCE shorter than 68 bytes. Upstream rejects those and
+  the signature fails at random; the rewrite accepts INTEGER lengths 1–33 and left-pads to 32
+  bytes.
+- **Strict DER**: upstream only checks tags and lengths 68–70 / 32–33 and ignores what follows.
+  The rewrite also requires the SEQUENCE length to equal the remaining bytes (no trailing data),
+  INTEGERs to be minimal (no superfluous leading `0x00`), positive (top bit clear unless padded)
+  and non-zero. Upstream would pass such malformed values through to OpenSSH, where the
+  signature fails to verify; no conforming authenticator emits them.
+- **P-256 coordinates**: COSE EC2 `x`/`y` must be exactly 32 bytes; upstream copied whatever
+  length it got into the public key.
+- **Ed25519 signature length**: as upstream, the first 64 bytes are used and anything after is
+  ignored; fewer than 64 bytes is an error.
+- **Missing `sig_r` on success** is an error in the library; upstream hands OpenSSH a NULL
+  `sig_r`, which OpenSSH rejects anyway (`sshsk_ed25519_sig`/`sshsk_ecdsa_sig`), so the outcome
+  (failure) is the same.
+
+**C ABI (sk-middleware)**
+
+- **NULL buffer with non-zero length** from OpenSSH is an error instead of an empty buffer.
+- **Invalid UTF-8** in `application` or option names/values is an error (CBOR text must be
+  UTF-8); upstream copied the raw bytes into a CBOR text string. OpenSSH applications are ASCII
+  (`ssh:` prefix).
+- **Empty buffers** in responses are returned as NULL with length 0; upstream returned
+  `calloc(1, 0)` (a non-NULL pointer) with length 0. OpenSSH treats both the same for
+  `attestation_cert`/`authdata`; an empty `sig_r` fails either way.
+- **Memory on error paths**: freed instead of leaked (R9).
+
+**Process bridge**
+
+- **Request size**: requests over 32768 bytes are rejected before spawning the exe. Upstream
+  wrote them anyway; the exe refused the header and exited, and the next write raised SIGPIPE,
+  killing `ssh-keygen`/`ssh-sk-helper`.
+- **Inherited descriptors**: the child marks every fd ≥ 3 close-on-exec
+  (`close_range(3, ~0, CLOSE_RANGE_CLOEXEC)` in `pre_exec`) so host descriptors such as
+  `ssh-sk-helper`'s socket do not leak into the bridge; upstream's `fork`/`execl` leaked them.
+  Close-on-exec instead of close keeps std's exec-error pipe working.
+- **`WSLENV`** is handled as raw bytes (`OsString`); upstream also passed bytes through.
+- **Console subsystem**: the exe is a console application like upstream's (its `WinMain` is
+  only mingw's entry point; CMake builds it without `WIN32`), so stderr diagnostics reach the
+  WSL terminal. (An earlier rewrite draft used the GUI subsystem, which dropped them.)
+
+**Wire protocol decoding** (both directions; encodings are byte-identical to upstream, see
+`crates/protocol/tests/fixtures/README.md`)
+
+- **Frame header** at most 5 digits (the width of 32768): `000005|` is rejected and an endless
+  `000…` stream errors instead of being read forever. Upstream accepts any number of leading
+  zeros; its own writer never sends them.
+- **Duplicate map keys** are an error (serde); upstream's `std::map::emplace` kept the first.
+- **Invalid UTF-8 in text strings** is an error; upstream stored the bytes.
+- **Indefinite-length items and tags** are accepted by ciborium (tags ignored); upstream throws
+  on both. Neither side emits them.
+- **CBOR null** for `sig_r`/`sig_s` is an error, as upstream (its `try_at<cbor_byte_string>`
+  throws on null); an absent key is allowed on decode, as upstream.
+- **Unknown map keys** are ignored, as upstream (lookup by key).
+- **Debug notation** (`message::diagnostic`) prints upstream's `dump_debug` format (`b"…"` hex
+  byte strings, `(null)`), so logs compare line by line.
+
+**Windows UI**
+
+- **Owner window class**: the window uses the predefined `STATIC` class instead of registering
+  a custom one (same styles and position; upstream's window procedure only posts `WM_QUIT`,
+  which the rewrite does not need because it destroys the window itself after the worker
+  thread ends). The VS Code `SetParent` fallback is kept.
+
+## R13. Test fixtures: what comes from upstream and what is synthetic
+
+- From upstream (`crates/protocol/tests/fixtures/`, provenance in its README): the captured
+  sign request and response; the authenticator data of that signature (rebuilt from the
+  captured values and verified with `openssl pkeyutl -verify` against the key's public key, so
+  it is exactly what the key signed); the enroll response encoded by upstream's own CBOR
+  encoder. `convert.rs` turns the authenticator data and `sig_r` into a reply byte-identical to
+  the captured one, and the middleware maps that reply to the OpenSSH struct.
+- Synthetic (no upstream capture exists, and producing one needs hardware runs that are tracked
+  as T030/T038): ECDSA signatures and their DER variants, COSE keys, attestation objects
+  (`packed`/`fido-u2f`, with/without `x5c`, with extension data) and attested-credential
+  authenticator data. They follow the WebAuthn/COSE specifications and upstream's parser rules;
+  replace them with captures when an `ecdsa-sk` sign and an enrollment are run with
+  `WINDOWS_FIDO_BRIDGE_DEBUG=1`.
+- No-panic loops (xorshift, fixed seeds) feed random and mutated inputs to `frame::read`,
+  `message::decode`, `AuthenticatorData::parse`, `ecdsa_signature`, `cose_public_key` and
+  `parse_attestation`.
+
+## R14. `--list-serials`: an additive extension beyond upstream
+
+- **Why**: gfh maps YubiKey serials to SSH keys. Under WSL the keys stay attached to Windows, so
+  gfh cannot see them over HID or PC/SC in Linux; it runs `windowsfidobridge.exe --list-serials`
+  (next to `$SSH_SK_PROVIDER`) through WSL interop instead. Upstream has no such mode, and
+  without the flag the executable behaves exactly as before (Principle I is unaffected).
+- **Contract**: stdout carries only the serials of the YubiKeys attached to Windows, one decimal
+  per line (`\n`), deduplicated, in reader order; empty when none. Exit 0, including when the
+  smart card service is absent or stopped or there are no readers (`SCARD_E_NO_SERVICE`,
+  `SCARD_E_SERVICE_STOPPED`, `SCARD_E_NO_READERS_AVAILABLE`); any other PC/SC failure exits
+  non-zero with a message on stderr. A key that cannot be read is skipped with a warning. stdin
+  is not read and no window or WebAuthn UI is shown.
+- **Why PC/SC**: WinSCard needs no administrator rights, unlike raw FIDO HID access on Windows,
+  and YubiKeys with CCID enabled appear as readers named `… YubiKey …`.
+- **APDUs** (`crates/webauthn-bridge/src/serial.rs`), verified against yubikit
+  (yubikey-manager 5.9.2 `management.py` `read_device_info`, `yubiotp.py` `get_serial`,
+  `core/smartcard`) and the `yubikey` crate 0.6 (`transaction.rs` `get_serial`, used by gfh):
+  1. SELECT Management `00 A4 04 00 08 A0 00 00 05 27 47 11 17`, then READ CONFIG page 0
+     `00 1D 00 00 00` (YubiKey ≥ 4.1): a length byte then TLVs; tag `0x02` is the serial,
+     big-endian.
+  2. Fallback (YubiKey NEO/4 before 4.1, or Management unavailable): SELECT OTP
+     `00 A4 04 00 07 A0 00 00 05 27 20 01`, then `00 01 10 00 00` (`INS_CONFIG`, slot
+     `DEVICE_SERIAL`): a 4-byte big-endian serial.
+  Only SW `90 00` is success; `61 xx` is followed by GET RESPONSE `00 C0 00 00 00`, as yubikit's
+  `ResponseChainingProcessor`. A serial of 0 or a missing tag means "no serial" (yubikit), as
+  with the serial-visibility flag off.

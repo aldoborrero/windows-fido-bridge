@@ -14,7 +14,7 @@ just test       # fast loop: cargo test --workspace
 ```
 
 Expected: all green. The protocol tests decode/encode the golden fixtures in
-[contracts/fixtures/](contracts/fixtures/); the conversion tests cover authenticator data, COSE
+[`crates/protocol/tests/fixtures/`](../../crates/protocol/tests/fixtures/); the conversion tests cover authenticator data, COSE
 keys and DER signatures (see [data-model.md](data-model.md)).
 
 ## 2. Build the deliverable

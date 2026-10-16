@@ -7,3 +7,17 @@ version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
 repository = "https://github.com/aldoborrero/windows-fido-bridge"
+
+# Shared by every crate (`[lints] workspace = true`); `unsafe_code` stays per crate/module as an
+# attribute because only sk-middleware and the Windows adapter may use it.
+[workspace.lints.clippy]
+undocumented_unsafe_blocks = "deny"
+
+[profile.release]
+lto = true
+codegen-units = 1
+# sk-middleware relies on catch_unwind to keep panics from crossing the C ABI.
+panic = "unwind"
+
+[workspace.metadata.crane]
+name = "windows-fido-bridge"
