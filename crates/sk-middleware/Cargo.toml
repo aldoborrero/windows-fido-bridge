@@ -1,0 +1,11 @@
+[package]
+name = "sk-middleware"
+description = "OpenSSH security key middleware loaded through SSH_SK_PROVIDER"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "windowsfidobridge"
+crate-type = ["cdylib"]

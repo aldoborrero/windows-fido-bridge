@@ -1,0 +1,6 @@
+windows-fido-bridge (Rust rewrite)
+
+This project is a Rust reimplementation of windows-fido-bridge
+(https://github.com/mgbowen/windows-fido-bridge, continued at
+https://github.com/socram8888/windows-fido-bridge), originally written by
+Matthew Bowen and contributors and licensed under the Apache License 2.0.

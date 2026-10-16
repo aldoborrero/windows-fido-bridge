@@ -1,0 +1,17 @@
+# nix
+result
+result-*
+
+# direnv
+.direnv/
+.envrc.local
+
+# rust
+target/
+.cargo/
+
+# git worktrees for feature branches (just worktree <branch>)
+.worktrees/
+
+# upstream C++ implementation (reference for the rewrite), see `just upstream`
+.scratch/

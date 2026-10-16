@@ -1,0 +1,11 @@
+[package]
+name = "webauthn-bridge"
+description = "Windows executable that serves security key requests through webauthn.dll"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "windowsfidobridge"
+path = "src/main.rs"

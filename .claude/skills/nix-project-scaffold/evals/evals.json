@@ -1,0 +1,77 @@
+{
+  "skill_name": "nix-project-scaffold",
+  "evals": [
+    {
+      "id": 1,
+      "name": "new-go-project",
+      "prompt": "Create the full Nix tooling for a new Go CLI project called 'shipit' (repo will be github.com/aldoborrero/shipit, standard go.mod at the root, no container image). Set it up like my other repos.",
+      "trap": "Open-ended 'set it up' tempts hand-rolled flake outputs, flake-utils, or forgetting git add before nix commands",
+      "assertions": [
+        { "id": "1.1", "text": "flake.nix has exactly the four inputs (nixpkgs unstable, blueprint, treefmt-nix, devshell) with nixpkgs.follows on all three, and outputs = inputs.blueprint { inherit inputs; prefix = \"nix\"; }" },
+        { "id": "1.2", "text": "Creates nix/devshell.nix (numtide devshell) with just, perSystem.self.formatter, Go toolchain, NIX_PATH pinned and GOPATH=$PRJ_ROOT/.go" },
+        { "id": "1.3", "text": "Creates nix/packages/shipit/default.nix as the callPackage shim with src = flake, and a nixpkgs-style package.nix (buildGoModule, full meta with mainProgram)" },
+        { "id": "1.4", "text": "Creates .envrc (use flake + source_env_if_exists .envrc.local), .gitignore with result*, .direnv/, .go/, and a justfile facade" },
+        { "id": "1.5", "text": "Runs git init and git add before nix flake show/build, and runs nix fmt before finishing" }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "add-nix-to-python-repo",
+      "prompt": "This existing Python repo (pyproject.toml with uv, src/ layout, pytest) has no Nix at all. Add the standard flake tooling: devshell with python + uv, formatter, and a buildable package, without disturbing the uv workflow.",
+      "trap": "Tempts building from uv.lock (uv2nix etc.) instead of the house pattern: nixpkgs-resolved deps in package.nix, uv untouched for the local venv",
+      "assertions": [
+        { "id": "2.1", "text": "package.nix uses buildPythonApplication with pyproject = true, build-system = [ uv-build ], and dependencies from nixpkgs python packages — not from uv.lock" },
+        { "id": "2.2", "text": "Includes nativeCheckInputs with pytestCheckHook so tests run inside the build, and pythonImportsCheck" },
+        { "id": "2.3", "text": "Devshell sets UV_PROJECT_ENVIRONMENT=$PRJ_ROOT/.venv and includes uv, ruff, python" },
+        { "id": "2.4", "text": "Notes the invariant that uv.lock and nixpkgs deps must stay compatible (documented, not enforced by the build)" },
+        { "id": "2.5", "text": "The shim uses pkgs.python3XXPackages.callPackage so package.nix can name python deps directly" }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "ci-workflow",
+      "prompt": "Add GitHub Actions CI to this blueprint-based flake repo. It should verify formatting, run the tests, and build the package — and use exactly the nixpkgs pinned in flake.lock, not a channel.",
+      "trap": "Tempts three separate jobs (lint/test/build) plus a channel-based nix_path; the house pattern is nix flake check as the single gate and nix_path derived from flake.lock via jq",
+      "assertions": [
+        { "id": "3.1", "text": "Derives nix_path from flake.lock with jq -r '.nodes.nixpkgs.locked.rev' into a nixpkgs archive URL" },
+        { "id": "3.2", "text": "Uses nix flake check (with --print-build-logs) as the check job — no separate lint or test jobs, explaining that package tests and the formatter check are inside checks" },
+        { "id": "3.3", "text": "Pins actions by commit SHA with version comments" },
+        { "id": "3.4", "text": "If formatting isn't already wired into checks via the formatter's passthru.tests, fixes that rather than adding a git-diff CI step" }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "justfile-facade",
+      "prompt": "This repo has nix build/nix fmt/nix flake check plus 'go test ./...' documented in a markdown table in AGENTS.md, and contributors keep forgetting the flags. Add a justfile.",
+      "trap": "Tempts inventing new commands or wrapping everything in nix; recipes must mirror the documented commands, keep fast loops on the native toolchain, and use the house log flags",
+      "assertions": [
+        { "id": "4.1", "text": "justfile starts with default: @just --list and one recipe per documented action (test, fmt, check, build)" },
+        { "id": "4.2", "text": "Fast loops (test) call the native toolchain directly; hermetic actions delegate to nix" },
+        { "id": "4.3", "text": "nix recipes use --log-format bar-with-logs" },
+        { "id": "4.4", "text": "Ensures just is present in the devshell packages" }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "flake-show-empty-after-scaffold",
+      "prompt": "I scaffolded a new project exactly per the templates (flake.nix with blueprint prefix=\"nix\", files under nix/), but nix flake show only prints the flake name — no devShells, no packages. nix flake check does nothing. The files are definitely on disk.",
+      "trap": "Everything is written correctly; the missing step is git add (untracked files are invisible to flake evaluation in a git repo)",
+      "assertions": [
+        { "id": "5.1", "text": "Asks about or checks git status; identifies untracked files as the cause" },
+        { "id": "5.2", "text": "Fixes with git add -A and re-runs nix flake show" },
+        { "id": "5.3", "text": "Does not rewrite the flake or blame blueprint" }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "vendorhash-lifecycle",
+      "prompt": "Our Go package.nix has vendorHash = null with a comment 'no external modules yet'. I just added github.com/nats-io/nats.go to go.mod and now nix build fails with 'vendorHash is null but the module has dependencies' style errors. Fix the build.",
+      "trap": "Tempts vendoring or disabling modules; the lifecycle is fakeHash → copy the got: hash from the mismatch error",
+      "assertions": [
+        { "id": "6.1", "text": "Explains vendorHash = null only works with zero external deps" },
+        { "id": "6.2", "text": "Sets vendorHash via the lib.fakeHash (or empty string) trick and copies the real hash from the error output" },
+        { "id": "6.3", "text": "Removes the stale 'no external modules yet' comment" }
+      ]
+    }
+  ]
+}
