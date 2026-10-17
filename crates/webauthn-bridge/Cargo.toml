@@ -9,3 +9,20 @@ repository.workspace = true
 [[bin]]
 name = "windowsfidobridge"
 path = "src/main.rs"
+
+[dependencies]
+wfb-protocol = { path = "../protocol" }
+ciborium = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_Networking_WindowsWebServices",
+  "Win32_Security_Credentials",
+  "Win32_UI_WindowsAndMessaging",
+  "Win32_System_LibraryLoader",
+  "Win32_System_Threading",
+] }
+
+[lints]
+workspace = true

@@ -9,3 +9,11 @@ repository.workspace = true
 [lib]
 name = "windowsfidobridge"
 crate-type = ["cdylib"]
+
+[dependencies]
+wfb-protocol = { path = "../protocol" }
+libc = "0.2"
+serde = "1"
+
+[lints]
+workspace = true

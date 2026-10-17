@@ -11,9 +11,10 @@ default:
 test *args:
     cargo test --workspace {{ args }}
 
-# Lint
+# Lint (Linux, then the Windows-only modules of the bridge)
 lint:
     cargo clippy --workspace --all-targets -- --deny warnings
+    cargo clippy --package webauthn-bridge --target x86_64-pc-windows-gnu --all-targets -- --deny warnings
 
 # Format everything (nix, rust, yaml, toml, markdown, shell)
 fmt:

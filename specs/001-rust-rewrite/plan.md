@@ -47,7 +47,7 @@ DLLs
 
 | Principle | Gate | Pre-research | Post-design |
 | --- | --- | --- | --- |
-| I. Upstream parity | Wire format, conversions, exe-next-to-.so, SK API v10, env vars match upstream; deviations documented | ✅ spec FR-001…FR-011 | ✅ contracts mirror upstream; golden fixtures from an upstream run; quirks kept (research R10); only deviation = freeing memory on error paths where upstream leaked (R9) |
+| I. Upstream parity | Wire format, conversions, exe-next-to-.so, SK API v10, env vars match upstream; deviations documented | ✅ spec FR-001…FR-011 | ✅ contracts mirror upstream; golden fixtures from an upstream run; quirks kept (research R10); deviations listed in research R12 (enroll flags fix R10, memory freed on error paths R9, …) |
 | II. Unsafe at FFI only | unsafe limited to `extern "C"` entry points + `libc` calls in sk-middleware and `windows-sys` calls in webauthn-bridge; SAFETY comments; calloc'd responses; `catch_unwind` | ✅ | ✅ `lib.rs`/`ffi.rs`/`bridge.rs` (dladdr) in sk-middleware and `webauthn.rs`/`window.rs` in the bridge are the only unsafe modules; `wfb-protocol` and `convert.rs` use `#![forbid(unsafe_code)]` / `#[deny(unsafe_code)]` |
 | III. Simplicity | stdlib first; few crates; no speculative abstractions | ✅ | ✅ 5 external crates (ciborium, serde, serde_bytes, libc, windows-sys); no logging crate; one shared crate justified in R4 |
 | IV. Tested core | platform-independent logic unit-tested on Linux; Windows code thin; `just try-sign` on hardware | ✅ | ✅ `convert.rs` + `wfb-protocol` tested on Linux; new `nix/checks/tests.nix` runs `cargo test --workspace` |
@@ -62,13 +62,12 @@ No violations → Complexity Tracking empty.
 ```text
 specs/001-rust-rewrite/
 ├── plan.md              # This file
-├── research.md          # Phase 0: decisions R1–R11
+├── research.md          # Phase 0: decisions R1–R13
 ├── data-model.md        # Phase 1: entities, encodings, conversions
 ├── quickstart.md        # Phase 1: validation guide (automated + hardware)
 ├── contracts/
 │   ├── sk-api.md        # C ABI exported to OpenSSH
-│   ├── wire-protocol.md # Linux ↔ Windows framing + CBOR messages
-│   └── fixtures/        # golden CBOR payloads captured from upstream
+│   └── wire-protocol.md # Linux ↔ Windows framing + CBOR messages
 ├── checklists/
 │   └── requirements.md
 └── tasks.md             # Phase 2 (/speckit-tasks)
@@ -81,11 +80,11 @@ Cargo.toml                      # workspace: members = ["crates/*"], [profile.re
 crates/
 ├── protocol/                   # NEW lib `wfb-protocol` (platform-independent, no unsafe)
 │   ├── src/lib.rs              # module declarations + re-exports
-│   ├── src/sk.rs               # sk-api.h constants (version, flags, algs, error codes)
+│   ├── src/sk.rs               # sk-api.h constants the bridge uses
 │   ├── src/message.rs          # Request/EnrollParams/SignParams/SkOption/Response/EnrollResult/SignResult (serde)
 │   ├── src/frame.rs            # "<len>|<payload>" read/write over io::Read/Write, 32768 limit
 │   ├── src/log.rs              # WINDOWS_FIDO_BRIDGE_DEBUG-gated stderr logger + hex dump
-│   └── tests/fixtures/         # copies of specs/001-rust-rewrite/contracts/fixtures/*.hex
+│   └── tests/fixtures/         # golden fixtures from upstream (see README)
 ├── sk-middleware/              # cdylib `windowsfidobridge` → libwindowsfidobridge.so
 │   ├── src/lib.rs              # extern "C" sk_api_version/sk_enroll/sk_sign/sk_load_resident_keys
 │   ├── src/ffi.rs              # #[repr(C)] structs, C-string/option parsing, calloc'd buffers + guard

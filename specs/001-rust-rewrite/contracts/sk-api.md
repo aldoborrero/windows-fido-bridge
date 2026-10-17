@@ -5,6 +5,9 @@ modulo a `HAVE_STDINT_H` guard). Exported by `libwindowsfidobridge.so` with C li
 
 ## Constants
 
+From OpenSSH; `wfb_protocol::sk` defines only the ones the bridge uses (version,
+`USER_VERIFICATION_REQD`, the two algorithms, `ERR_GENERAL`, `ERR_UNSUPPORTED`).
+
 | Name | Value |
 | --- | --- |
 | `SSH_SK_VERSION_MAJOR` | `0x000a0000` |
@@ -39,13 +42,14 @@ struct sk_option { char *name; char *value; uint8_t required; };
 | Function | Behaviour |
 | --- | --- |
 | `uint32_t sk_api_version(void)` | returns `0x000a0000` |
-| `int sk_enroll(uint32_t alg, const uint8_t *challenge, size_t challenge_len, const char *application, uint8_t flags, const char *pin, struct sk_option **options, struct sk_enroll_response **enroll_response)` | forwards an `sk_enroll` request; on success writes a `calloc`ed response to `*enroll_response` and returns 0; otherwise returns -1 and leaves `*enroll_response` untouched |
+| `int sk_enroll(uint32_t alg, const uint8_t *challenge, size_t challenge_len, const char *application, uint8_t flags, const char *pin, struct sk_option **options, struct sk_enroll_response **enroll_response)` | forwards an `sk_enroll` request; on success writes a `calloc`ed response (its `flags` = the request `flags`) to `*enroll_response` and returns 0; otherwise returns -1 and leaves `*enroll_response` untouched |
 | `int sk_sign(uint32_t alg, const uint8_t *data, size_t data_len, const char *application, const uint8_t *key_handle, size_t key_handle_len, uint8_t flags, const char *pin, struct sk_option **options, struct sk_sign_response **sign_response)` | forwards an `sk_sign` request; same success/failure contract |
 | `int sk_load_resident_keys(const char *pin, struct sk_option **options, struct sk_resident_key ***rks, size_t *nrks)` | returns `SSH_SK_ERR_UNSUPPORTED` (-2) |
 
 ## Input handling
 
-- `application` and `pin` may be NULL → treated as empty strings. `pin` is never forwarded or
+- `application` and `pin` may be NULL → treated as empty strings. `application` and option
+  strings must be UTF-8, otherwise -1. `pin` is never forwarded or
   logged (only "present"/"not present").
 - `options` may be NULL; otherwise a NULL-terminated array of `sk_option*`.
 - `challenge`/`data`/`key_handle` with length 0 may have a NULL pointer.
