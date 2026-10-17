@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="560" viewBox="0 0 1600 560" role="img" aria-labelledby="title desc">
+  <title id="title">windows-fido-bridge — sign with the FIDO key on Windows, from OpenSSH in WSL</title>
+  <desc id="desc">ssh, git and ssh-agent in WSL load libwindowsfidobridge.so through SSH_SK_PROVIDER. It starts windowsfidobridge.exe through WSL interop, which asks Windows WebAuthn for the signature; Windows prompts for a touch on the security key, which never leaves Windows.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="9" refY="6" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M1 1 L9 6 L1 11" fill="none" stroke="#5b6570" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <marker id="blue-arrow" markerWidth="12" markerHeight="12" refX="9" refY="6" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M1 1 L9 6 L1 11" fill="none" stroke="#294f82" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+  <style>
+    @media (prefers-color-scheme: dark) {
+      svg { background-color: #181825 }
+      [fill="#ffffff"] { fill: #181825 }
+      [fill="#f0f5fa"] { fill: #1e1e2e }
+      [fill="#20252b"] { fill: #cdd6f4 }
+      [fill="#5b6570"] { fill: #a6adc8 }
+      [stroke="#5b6570"] { stroke: #a6adc8 }
+      [fill="#294f82"] { fill: #89b4fa }
+      [stroke="#294f82"] { stroke: #89b4fa }
+      [stroke="#dce2e8"] { stroke: #45475a }
+      [stroke="#87929e"] { stroke: #6c7086 }
+      [fill="#87929e"] { fill: #6c7086 }
+    }
+  </style>
+
+  <rect width="1600" height="560" fill="#ffffff"/>
+
+  <g font-family="DejaVu Sans, Arial, Helvetica, sans-serif" fill="#20252b">
+    <!-- header -->
+    <text x="64" y="104" font-size="58" font-weight="700">windows-fido-bridge</text>
+    <text x="64" y="156" font-size="28" fill="#5b6570">Sign with the FIDO key on Windows, from OpenSSH in WSL. No USB passthrough.</text>
+    <path d="M64 196 H1536" stroke="#dce2e8" stroke-width="2"/>
+
+    <!-- the two worlds -->
+    <g font-size="20" font-weight="700" letter-spacing="3" fill="#87929e">
+      <text x="64" y="250">WSL · LINUX</text>
+      <text x="866" y="250">WINDOWS</text>
+    </g>
+    <path d="M800 228 V300 M800 440 V500" stroke="#87929e" stroke-width="2" stroke-dasharray="6 8"/>
+
+    <!-- boxes -->
+    <g stroke-width="3">
+      <rect x="64" y="282" width="270" height="190" rx="14" fill="#ffffff" stroke="#87929e"/>
+      <rect x="394" y="282" width="340" height="190" rx="14" fill="#f0f5fa" stroke="#294f82"/>
+      <rect x="866" y="282" width="340" height="190" rx="14" fill="#f0f5fa" stroke="#294f82"/>
+      <rect x="1266" y="282" width="270" height="190" rx="14" fill="#ffffff" stroke="#87929e"/>
+    </g>
+
+    <g text-anchor="middle">
+      <!-- 1. OpenSSH -->
+      <text x="199" y="342" font-size="32" font-weight="700">OpenSSH</text>
+      <text x="199" y="388" font-size="22" fill="#5b6570">ssh · git · ssh-agent</text>
+      <text x="199" y="424" font-size="22" fill="#5b6570">ed25519-sk · ecdsa-sk</text>
+
+      <!-- 2. the middleware -->
+      <text x="564" y="342" font-size="21" font-weight="700" fill="#294f82">libwindowsfidobridge.so</text>
+      <text x="564" y="388" font-size="22" fill="#5b6570">SSH_SK_PROVIDER</text>
+      <text x="564" y="424" font-size="22" fill="#5b6570">sk-api v10</text>
+
+      <!-- 3. the Windows half -->
+      <text x="1036" y="342" font-size="21" font-weight="700" fill="#294f82">windowsfidobridge.exe</text>
+      <text x="1036" y="388" font-size="22" fill="#5b6570">webauthn.dll</text>
+      <text x="1036" y="424" font-size="22" fill="#5b6570">Windows asks for a touch</text>
+
+      <!-- 4. the key -->
+      <text x="1401" y="342" font-size="30" font-weight="700">Security key</text>
+      <text x="1401" y="388" font-size="22" fill="#5b6570">YubiKey · FIDO2</text>
+      <text x="1401" y="424" font-size="22" fill="#5b6570">stays on Windows</text>
+    </g>
+
+    <!-- arrows -->
+    <g fill="none" stroke-width="3" stroke-linecap="round">
+      <path d="M342 377 H382" stroke="#5b6570" marker-end="url(#arrow)"/>
+      <path d="M744 377 H854" stroke="#294f82" marker-end="url(#blue-arrow)"/>
+      <path d="M1214 377 H1254" stroke="#5b6570" marker-end="url(#arrow)"/>
+    </g>
+    <text x="800" y="358" font-size="16" text-anchor="middle" fill="#294f82" font-weight="700">WSL interop</text>
+    <text x="800" y="406" font-size="16" text-anchor="middle" fill="#5b6570">CBOR over</text>
+    <text x="800" y="426" font-size="16" text-anchor="middle" fill="#5b6570">stdin/stdout</text>
+
+    <!-- footer -->
+    <text x="64" y="526" font-size="21" fill="#5b6570">Rust · Nix · NixOS &amp; home-manager modules · ~0.3 s overhead per signature</text>
+  </g>
+</svg>

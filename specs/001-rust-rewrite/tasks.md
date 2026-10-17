@@ -179,7 +179,7 @@ through Windows WebAuthn.
 - [ ] T058 `window::run` with `std::thread::scope` so the request fields are borrowed rather than cloned into the worker
 - [ ] T059 Block `SIGPIPE` around the request write (`pthread_sigmask`, then drain with `sigtimedwait`) so a bridge that dies before reading stdin cannot kill the host process (only the > 32768 byte case is handled today)
 - [X] T060 `windowsfidobridge.exe --list-serials` for gfh (research R14): `serial.rs` (APDUs, response chaining, DeviceInfo TLV and OTP serial parsing, reader filter, dedup; unit-tested on Linux) and `pcsc.rs` (WinSCard with RAII context/card guards); README and AGENTS.md updated
-- [ ] T061 Hardware validation: run `result/lib/windowsfidobridge.exe --list-serials` with the key attached to Windows; it prints the serial `ykman list --serials` shows on Windows (empty output and exit 0 with no key)
+- [X] T061 Hardware validation: run `result/lib/windowsfidobridge.exe --list-serials` with the key attached to Windows; it prints the serial `ykman list --serials` shows on Windows (empty output and exit 0 with no key)
 
 ---
 
