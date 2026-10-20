@@ -34,12 +34,21 @@ rec {
   windowsArgs =
     pkgs:
     commonArgs pkgs
-    // windowsTargetEnv pkgs
+    // windowsCrossArgs pkgs
     // {
       pname = "windows-fido-bridge-exe";
-      CARGO_BUILD_TARGET = "x86_64-pc-windows-gnu";
       cargoExtraArgs = "--locked --package webauthn-bridge";
-      # dlltool for windows-sys raw-dylib imports (webauthn.dll, user32.dll).
+    };
+
+  # Crane arguments that build any crate for x86_64-pc-windows-gnu: this workspace's bridge
+  # and the vendored age-plugin-yubikey.
+  windowsCrossArgs =
+    pkgs:
+    windowsTargetEnv pkgs
+    // {
+      CARGO_BUILD_TARGET = "x86_64-pc-windows-gnu";
+      # dlltool for windows-sys raw-dylib imports (webauthn.dll, user32.dll), and the mingw
+      # import libraries (winscard) that pcsc-sys links.
       nativeBuildInputs = [ pkgs.pkgsCross.mingwW64.stdenv.cc ];
       doCheck = false; # Windows binaries cannot run in the Linux build sandbox
     };
