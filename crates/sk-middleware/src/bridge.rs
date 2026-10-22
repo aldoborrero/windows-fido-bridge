@@ -74,7 +74,12 @@ fn exchange(mut cmd: Command, payload: &[u8]) -> io::Result<Vec<u8>> {
     // Dropping the pipes before waiting lets the child see EOF / EPIPE if we bail out early.
     let reply = (|| {
         let (mut stdin, mut stdout) = stdin.zip(stdout).ok_or(io::ErrorKind::BrokenPipe)?;
-        frame::write(&mut stdin, payload)?;
+        // A child that exits before reading the request surfaces as EPIPE on the write, or as
+        // EOF on the read when it exits after the write: report both as the same early close.
+        frame::write(&mut stdin, payload).map_err(|e| match e.kind() {
+            io::ErrorKind::BrokenPipe => io::Error::from(io::ErrorKind::UnexpectedEof),
+            _ => e,
+        })?;
         drop(stdin);
         frame::read(&mut stdout)
     })();

@@ -12,7 +12,7 @@
 [![OpenSSH](https://img.shields.io/badge/OpenSSH-%E2%89%A5%209.1-294f82?style=flat-square)](#requirements)
 [![License](https://img.shields.io/badge/license-Apache--2.0-f4c430?style=flat-square)](LICENSE)
 
-[Quick start](#quick-start) · [How it works](#how-it-works) · [Git signing](#git-commit-signing) · [Troubleshooting](#troubleshooting) · [Development](#development)
+[Quick start](#quick-start) · [How it works](#how-it-works) · [Git signing](#git-commit-signing) · [age / sops](#age-and-sops-with-a-yubikey-piv) · [Troubleshooting](#troubleshooting) · [Development](#development)
 
 <br />
 
@@ -131,6 +131,38 @@ git config --global user.signingKey ~/.ssh/id_ed25519_sk.pub
 
 With several YubiKeys, [gfh](https://github.com/aldoborrero/gfh) picks the key that is plugged in: under WSL it reads the serials with `--list-serials`, then loads the matching key into `ssh-agent` through the bridge.
 
+## age and sops with a YubiKey (PIV)
+
+The same YubiKey can decrypt [age](https://age-encryption.org) files encrypted to its [`age-plugin-yubikey`](https://github.com/str4d/age-plugin-yubikey) recipient (`age1yubikey1…`, a PIV slot) — and so [sops](https://github.com/getsops/sops) files that list it. In WSL the Linux plugin finds no smart card reader (`Could not open YubiKey with serial …`); this flake builds the upstream plugin for Windows, where it reaches the key through the Smart Card service, and puts a shim named `age-plugin-yubikey` on `PATH` that runs it through WSL interop.
+
+```nix
+programs.windows-fido-bridge.age.enable = true;   # NixOS or home-manager; independent of `enable`
+```
+
+or, without the modules:
+
+```bash
+nix build github:aldoborrero/windows-fido-bridge#age-plugin-yubikey-wsl
+export PATH=$PWD/result/bin:$PATH
+```
+
+Then use age and sops as usual, with the identity stubs of your keys:
+
+```bash
+age-plugin-yubikey --identity > ~/yubikey-identities.txt   # stubs + recipients, no PIN or touch
+age -d -i ~/yubikey-identities.txt secret.age
+SOPS_AGE_KEY_FILE=~/yubikey-identities.txt sops -d secrets.sops.yaml
+```
+
+The age client asks for the PIV PIN in the WSL terminal (the plugin sends it a `request-secret`), and the YubiKey blinks when it needs a touch — the plugin prints nothing while it waits. `RUST_LOG=debug` is forwarded to the plugin for its logs.
+
+| Piece | Runs on | Role |
+| --- | --- | --- |
+| `bin/age-plugin-yubikey` | WSL (Linux) | Shim found by age on `PATH`; `exec`s the `.exe`, passing arguments, stdin/stdout/stderr and the exit status through |
+| `lib/age-plugin-yubikey.exe` | Windows | Upstream `age-plugin-yubikey` 0.5.1, built from source; talks to the PIV applet over WinSCard |
+
+The shim must come **first** on `PATH`: age has no other way to choose a plugin, and a Linux `age-plugin-yubikey` (for example from `nix-shell -p age-plugin-yubikey`) shadows it. The modules install it with high priority; shells that prepend their own copy need it removed on WSL.
+
 ## Troubleshooting
 
 | Symptom | Cause and fix |
@@ -139,6 +171,7 @@ With several YubiKeys, [gfh](https://github.com/aldoborrero/gfh) picks the key t
 | Windows asks you to insert a security key although one is plugged in | It is attached to WSL with `usbipd`. Run `usbipd detach --busid <id>` so Windows sees it. |
 | `Couldn't sign message: invalid format` right after pressing Cancel | Expected: OpenSSH reports every bridge failure as a generic error. Run with `WINDOWS_FIDO_BRIDGE_DEBUG=1` to see the Windows `HRESULT`. |
 | `[linux-middleware] [error] …/windowsfidobridge.exe: No such file or directory` | The `.exe` is not next to the `.so` (e.g. `SSH_SK_PROVIDER` points at a symlink of the library alone). |
+| `yubikey plugin: Could not open YubiKey with serial …` in WSL | The Linux plugin ran, not the shim: `command -v age-plugin-yubikey` must print the bridge's `bin/age-plugin-yubikey`. Also check the key is attached to Windows and the Smart Card service (`SCardSvr`) runs. |
 | A new shell does not use the bridge | `SSH_SK_PROVIDER` is not exported there; with the modules, log in again or open a new terminal. |
 
 ## Limitations
@@ -170,6 +203,7 @@ just test           # cargo test --workspace
 just lint           # clippy for Linux and the Windows target
 just build          # nix build: .so + .exe into ./result/lib
 just try-sign       # sign a test message through the bridge (key attached to Windows)
+just try-age        # decrypt a test file through the age plugin (key attached to Windows)
 just upstream       # clone the C++ reference into .scratch/
 just worktree feat  # new branch in .worktrees/feat
 ```

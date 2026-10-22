@@ -8,6 +8,9 @@ perSystem.devshell.mkShell {
     just
     perSystem.self.formatter
 
+    # age client for `just try-age`.
+    age
+
     # Rust toolchain from rust-toolchain.toml, with the x86_64-pc-windows-gnu target.
     (flake.lib.rustToolchain pkgs)
     # Linker and C runtime for the Windows bridge executable.
